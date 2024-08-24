@@ -71,7 +71,7 @@ def show_image(image_path, is_compressed=False, original_size=None):
     """Muestra una imagen en la interfaz gráfica y muestra información sobre la imagen."""
     try:
         with Image.open(image_path) as img:
-            img.thumbnail((400, 400))  # Redimensionar la imagen para que quepa en el Label
+            img.thumbnail((200, 200))  # Redimensionar la imagen para que quepa en el Label
             img_tk = ImageTk.PhotoImage(img)
             
             # Tamaño de archivo en KB
@@ -222,52 +222,104 @@ def finalize_compression():
 
 
 
+def toggle_entry_fields():
+    # Alterna entre habilitar y deshabilitar
+    state = tk.NORMAL if entry_fields_disabled.get() else tk.DISABLED
+
+    # Configura el estado de los campos de entrada
+    for widget in [input_file_entry, output_folder_entry, quality_entry, resize_entry, grayscale_entry]:
+        widget.config(state=state)
+
+    # Configura el estado de los botones
+    for widget in [browse_button, folder_button, compress_button]:
+        widget.config(state=state)
+    
+    # Alterna el estado de la variable de control
+    entry_fields_disabled.set(not entry_fields_disabled.get())
+
+
 # Configuración de la Ventana Principal
 root = tk.Tk()
 root.title("Compresor de Imágenes")
-
-
 
 # Variables de Entrada
 input_file_var = tk.StringVar()
 output_folder_var = tk.StringVar()
 quality_var = tk.StringVar(value="85")
 resize_var = tk.StringVar(value="1.0")
-grayscale_var = tk.StringVar(value="no")
+grayscale_var = tk.StringVar(value="n")
+entry_fields_disabled = tk.BooleanVar(value=False)
+
+# Layout de la GUI
+tk.Label(root, text="Configuraciones:").grid(row=0, column=0, padx=10, pady=5)
+tk.Label(root, text="-----------------------------------------------------").grid(row=0, column=1, padx=10, pady=5)
+tk.Label(root, text="----------------").grid(row=0, column=2, padx=10, pady=5)
+tk.Label(root, text="|").grid(row=0, column=3, padx=10, pady=5)
+tk.Label(root, text="Acciones:").grid(row=0, column=4, padx=10, pady=5)
 
 
+tk.Label(root, text="Seleccionar Imagen:").grid(row=1, column=0, padx=10, pady=5)
+input_file_entry = tk.Entry(root, textvariable=input_file_var, width=50)
+input_file_entry.grid(row=1, column=1, padx=10, pady=5)
+browse_button = tk.Button(root, text="Buscar", command=browse_file)
+browse_button.grid(row=1, column=2, padx=10, pady=5)
+tk.Label(root, text="|").grid(row=1, column=3, padx=10, pady=5)
+preview_button = tk.Button(root, text="Previsualizar", command=apply_preview)
+preview_button.grid(row=1, column=4, pady=10)
 
-# Widgets de la Interfaz Gráfica
-tk.Label(root, text="Seleccionar archivo de imagen:").pack()
-tk.Entry(root, textvariable=input_file_var).pack()
-tk.Button(root, text="Buscar archivo", command=browse_file).pack()
 
-tk.Label(root, text="Calidad (1-100):").pack()
-tk.Entry(root, textvariable=quality_var).pack()
+tk.Label(root, text="Carpeta de Salida:").grid(row=2, column=0, padx=10, pady=5)
+output_folder_entry = tk.Entry(root, textvariable=output_folder_var, width=50)
+output_folder_entry.grid(row=2, column=1, padx=10, pady=5)
+folder_button = tk.Button(root, text="Buscar Carpeta", command=lambda: output_folder_var.set(browse_folder()))
+folder_button.grid(row=2, column=2, padx=10, pady=5)
+tk.Label(root, text="|").grid(row=2, column=3, padx=10, pady=5)
+compress_button = tk.Button(root, text="Comprimir y Guardar", command=finalize_compression)
+compress_button.grid(row=2, column=4, pady=10)
 
-tk.Label(root, text="Factor de reducción (0.1-1.0):").pack()
-tk.Entry(root, textvariable=resize_var).pack()
 
-tk.Label(root, text="Convertir a escala de grises (sí/no):").pack()
-tk.Entry(root, textvariable=grayscale_var).pack()
+tk.Label(root, text="Calidad (1-100):").grid(row=3, column=0, padx=10, pady=5)
+quality_entry = tk.Entry(root, textvariable=quality_var, width=10)
+quality_entry.grid(row=3, column=1, padx=10, pady=5)
+tk.Label(root, text="|").grid(row=3, column=3, padx=10, pady=5)
 
-tk.Label(root, text="Carpeta de salida:").pack()
-tk.Entry(root, textvariable=output_folder_var).pack()
-tk.Button(root, text="Buscar carpeta de salida", command=lambda: output_folder_var.set(browse_folder())).pack()
 
-tk.Button(root, text="Aplicar vista previa", command=apply_preview).pack()
-tk.Button(root, text="Finalizar compresión", command=finalize_compression).pack()
+tk.Label(root, text="Factor de Reducción:").grid(row=4, column=0, padx=10, pady=5)
+resize_entry = tk.Entry(root, textvariable=resize_var, width=10)
+resize_entry.grid(row=4, column=1, padx=10, pady=5)
+tk.Label(root, text="|").grid(row=4, column=3, padx=10, pady=5)
 
+
+tk.Label(root, text="Grayscale (s/n):").grid(row=5, column=0, padx=10, pady=5)
+grayscale_entry = tk.Entry(root, textvariable=grayscale_var, width=10)
+grayscale_entry.grid(row=5, column=1, padx=10, pady=5)
+tk.Label(root, text="|").grid(row=5, column=3, padx=10, pady=5)
+
+
+# Imágenes y etiquetas para la visualización
 original_image_label = tk.Label(root)
-original_image_label.pack(side=tk.LEFT)
+original_image_label.grid(row=6, column=0, pady=10)
+
 
 compressed_image_label = tk.Label(root)
-compressed_image_label.pack(side=tk.RIGHT)
+compressed_image_label.grid(row=6, column=1, pady=10)
+
 
 original_image_info = tk.StringVar()
 compressed_image_info = tk.StringVar()
 
-tk.Label(root, textvariable=original_image_info).pack(side=tk.LEFT)
-tk.Label(root, textvariable=compressed_image_info).pack(side=tk.RIGHT)
+
+tk.Label(root, textvariable=original_image_info).grid(row=7, column=0,  pady=5)
+tk.Label(root, textvariable=compressed_image_info).grid(row=7, column=1,  pady=5)
+
+
+# Botón para habilitar/deshabilitar campos
+toggle_button = tk.Button(root, text="Habilitar/Deshabilitar Campos", command=toggle_entry_fields)
+toggle_button.grid(row=8, column=0, columnspan=4, pady=10)
+
+
+# Crear la carpeta de caché al iniciar
+create_cache_folder()
+
 
 root.mainloop()
