@@ -2,13 +2,38 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from functionalities.validations import validate_folder_path, validate_quality, validate_output_path
 
+
+
+# Constantes
 CACHE_DIR = './cache'
 CARPETAS_A_VERIFICAR = ["Desktop", "Documents", "Downloads"]
 
+
+
+# Funciones de Manejo de Caché
+def create_cache_folder():
+    """Crea la carpeta de caché si no existe."""
+    if not os.path.exists(CACHE_DIR):
+        os.makedirs(CACHE_DIR)
+
+def clear_cache():
+    """Elimina todos los archivos en la carpeta de caché."""
+    for filename in os.listdir(CACHE_DIR):
+        file_path = os.path.join(CACHE_DIR, filename)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+
+def get_cache_file_path():
+    """Devuelve la ruta del archivo de caché para la imagen comprimida temporalmente."""
+    return os.path.join(CACHE_DIR, 'temp_compressed_image.jpg')
+
+
+
+# Funciones de Compresión de Imágenes
 def compress_image(input_path, output_path, quality=85, resize_factor=1.0, convert_to_grayscale=False):
+    """Comprime una imagen y la guarda en el directorio de salida especificado."""
     try:
         with Image.open(input_path) as img:
             if convert_to_grayscale:
@@ -33,36 +58,17 @@ def compress_image(input_path, output_path, quality=85, resize_factor=1.0, conve
     except Exception as e:
         messagebox.showerror("Error", f"Error inesperado: {e}")
 
-def create_cache_folder():
-    if not os.path.exists(CACHE_DIR):
-        os.makedirs(CACHE_DIR)
-
-def clear_cache():
-    for filename in os.listdir(CACHE_DIR):
-        file_path = os.path.join(CACHE_DIR, filename)
-        if os.path.isfile(file_path):
-            os.remove(file_path)
-
-def get_cache_file_path():
-    return os.path.join(CACHE_DIR, 'temp_compressed_image.jpg')
-
 def compress_and_cache_image(input_path, quality=85, resize_factor=1.0, convert_to_grayscale=False):
+    """Comprime una imagen y la guarda en la caché temporalmente."""
     cache_path = get_cache_file_path()
     compress_image(input_path, cache_path, quality, resize_factor, convert_to_grayscale)
     return cache_path
 
-def browse_folder():
-    folder_selected = filedialog.askdirectory()
-    return folder_selected
 
-def browse_file():
-    file_selected = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg *.jpeg *.png")])
-    if file_selected:
-        input_file_var.set(file_selected)
-        show_image(file_selected, is_compressed=False)
-    return file_selected
 
+# Funciones de Visualización
 def show_image(image_path, is_compressed=False, original_size=None):
+    """Muestra una imagen en la interfaz gráfica y muestra información sobre la imagen."""
     try:
         with Image.open(image_path) as img:
             img.thumbnail((400, 400))  # Redimensionar la imagen para que quepa en el Label
@@ -127,7 +133,24 @@ def show_image(image_path, is_compressed=False, original_size=None):
     except Exception as e:
         print(f"Error al cargar la imagen {image_path}: {e}")
 
+
+
+# Funciones de Interfaz Gráfica
+def browse_folder():
+    """Abre un cuadro de diálogo para seleccionar una carpeta y devuelve la ruta seleccionada."""
+    folder_selected = filedialog.askdirectory()
+    return folder_selected
+
+def browse_file():
+    """Abre un cuadro de diálogo para seleccionar un archivo de imagen y muestra la imagen seleccionada."""
+    file_selected = filedialog.askopenfilename(filetypes=[("Image files", "*.jpg *.jpeg *.png")])
+    if file_selected:
+        input_file_var.set(file_selected)
+        show_image(file_selected, is_compressed=False)
+    return file_selected
+
 def apply_preview():
+    """Aplica la compresión y muestra una vista previa de la imagen comprimida."""
     input_path = input_file_var.get()
     if not os.path.isfile(input_path):
         messagebox.showerror("Error", "No se ha seleccionado ninguna imagen para previsualizar.")
@@ -164,9 +187,10 @@ def apply_preview():
     show_image(cache_path, is_compressed=True, original_size=original_size)
 
 def finalize_compression():
+    """Finaliza la compresión y guarda la imagen comprimida en la carpeta de salida especificada."""
     input_path = input_file_var.get()
     output_folder = output_folder_var.get()
-    if not validate_output_path(output_folder,CARPETAS_A_VERIFICAR):
+    if not validate_output_path(output_folder, CARPETAS_A_VERIFICAR):
         print(f"La ruta de salida debe estar contenida dentro de una de las carpetas permitidas: {', '.join(CARPETAS_A_VERIFICAR)}.")
         messagebox.showerror("Error", "La carpeta de salida no es válida.")
         return
@@ -196,53 +220,54 @@ def finalize_compression():
     else:
         messagebox.showerror("Error", "No se encontró la imagen comprimida en caché.")
 
-# Configuración de la ventana principal
+
+
+# Configuración de la Ventana Principal
 root = tk.Tk()
 root.title("Compresor de Imágenes")
 
-# Variables de entrada
+
+
+# Variables de Entrada
 input_file_var = tk.StringVar()
 output_folder_var = tk.StringVar()
 quality_var = tk.StringVar(value="85")
 resize_var = tk.StringVar(value="1.0")
-grayscale_var = tk.StringVar(value="n")
-
-# Layout de la GUI
-tk.Label(root, text="Seleccionar Imagen:").grid(row=0, column=0, padx=10, pady=5)
-tk.Entry(root, textvariable=input_file_var, width=50).grid(row=0, column=1, padx=10, pady=5)
-tk.Button(root, text="Buscar", command=browse_file).grid(row=0, column=2, padx=10, pady=5)
-
-tk.Label(root, text="Carpeta de Salida:").grid(row=1, column=0, padx=10, pady=5)
-tk.Entry(root, textvariable=output_folder_var, width=50).grid(row=1, column=1, padx=10, pady=5)
-tk.Button(root, text="Buscar Carpeta", command=lambda: output_folder_var.set(browse_folder())).grid(row=1, column=2, padx=10, pady=5)
-
-tk.Label(root, text="Calidad (1-100):").grid(row=2, column=0, padx=10, pady=5)
-tk.Entry(root, textvariable=quality_var, width=10).grid(row=2, column=1, padx=10, pady=5)
-
-tk.Label(root, text="Factor de Reducción:").grid(row=3, column=0, padx=10, pady=5)
-tk.Entry(root, textvariable=resize_var, width=10).grid(row=3, column=1, padx=10, pady=5)
-
-tk.Label(root, text="Grayscale (s/n):").grid(row=4, column=0, padx=10, pady=5)
-tk.Entry(root, textvariable=grayscale_var, width=10).grid(row=4, column=1, padx=10, pady=5)
+grayscale_var = tk.StringVar(value="no")
 
 
-# Imágenes y etiquetas para la visualización
+
+# Widgets de la Interfaz Gráfica
+tk.Label(root, text="Seleccionar archivo de imagen:").pack()
+tk.Entry(root, textvariable=input_file_var).pack()
+tk.Button(root, text="Buscar archivo", command=browse_file).pack()
+
+tk.Label(root, text="Calidad (1-100):").pack()
+tk.Entry(root, textvariable=quality_var).pack()
+
+tk.Label(root, text="Factor de reducción (0.1-1.0):").pack()
+tk.Entry(root, textvariable=resize_var).pack()
+
+tk.Label(root, text="Convertir a escala de grises (sí/no):").pack()
+tk.Entry(root, textvariable=grayscale_var).pack()
+
+tk.Label(root, text="Carpeta de salida:").pack()
+tk.Entry(root, textvariable=output_folder_var).pack()
+tk.Button(root, text="Buscar carpeta de salida", command=lambda: output_folder_var.set(browse_folder())).pack()
+
+tk.Button(root, text="Aplicar vista previa", command=apply_preview).pack()
+tk.Button(root, text="Finalizar compresión", command=finalize_compression).pack()
+
 original_image_label = tk.Label(root)
-original_image_label.grid(row=5, column=0, pady=10)
+original_image_label.pack(side=tk.LEFT)
 
 compressed_image_label = tk.Label(root)
-compressed_image_label.grid(row=5, column=1, pady=10)
+compressed_image_label.pack(side=tk.RIGHT)
 
 original_image_info = tk.StringVar()
 compressed_image_info = tk.StringVar()
 
-tk.Label(root, textvariable=original_image_info).grid(row=6, column=0,  pady=5)
-tk.Label(root, textvariable=compressed_image_info).grid(row=6, column=1,  pady=5)
-
-tk.Button(root, text="Previsualizar", command=apply_preview).grid(row=7, column=0, pady=10)
-tk.Button(root, text="Comprimir y Guardar", command=finalize_compression).grid(row=7, column=1, pady=10)
-
-# Crear la carpeta de caché al iniciar
-create_cache_folder()
+tk.Label(root, textvariable=original_image_info).pack(side=tk.LEFT)
+tk.Label(root, textvariable=compressed_image_info).pack(side=tk.RIGHT)
 
 root.mainloop()
