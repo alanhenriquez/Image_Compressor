@@ -237,6 +237,85 @@ def toggle_entry_fields():
     # Alterna el estado de la variable de control
     entry_fields_disabled.set(not entry_fields_disabled.get())
 
+def find_optimal_compression():
+    """Encuentra la configuración óptima para comprimir la imagen al tamaño deseado."""
+    input_path = input_file_var.get()
+    if not os.path.isfile(input_path):
+        messagebox.showerror("Error", "No se ha seleccionado ninguna imagen para comprimir.")
+        return
+
+    try:
+        max_weight_kb = float(max_weight_var.get())
+        if max_weight_kb <= 0:
+            raise ValueError("El peso máximo debe ser un número positivo.")
+        min_weight_kb = max_weight_kb * 0.8  # Se acepta hasta el 80% del peso máximo deseado como mínimo
+    except ValueError as e:
+        messagebox.showerror("Error", str(e))
+        return
+    
+    max_attempts = int(attempts_var.get())
+    initial_quality = 100
+    min_quality = 20
+    initial_resize_factor = 1.0
+    min_resize_factor = 0.1
+    quality_decrement = 20
+    resize_decrement = 0.1
+    
+    best_quality = None
+    best_resize_factor = None
+    best_file_size = float('inf')
+    best_compression = None
+
+    attempts = 0
+
+    # Primera fase: Reducción de calidad manteniendo el factor de redimensionamiento en 1.0
+    quality = initial_quality
+    resize_factor = initial_resize_factor
+
+    while attempts < max_attempts and quality >= min_quality:
+        cache_path = compress_and_cache_image(input_path, quality, resize_factor, False)
+        file_size = os.path.getsize(cache_path) / 1024  # Tamaño en KB
+
+        if min_weight_kb <= file_size <= max_weight_kb and file_size < best_file_size:
+            best_file_size = file_size
+            best_quality = quality
+            best_resize_factor = resize_factor
+            best_compression = cache_path
+
+        attempts += 1
+        quality -= quality_decrement
+
+    # Segunda fase: Reducción del factor de redimensionamiento con la calidad mínima alcanzada
+    quality = min_quality
+    while attempts < max_attempts and resize_factor >= min_resize_factor:
+        cache_path = compress_and_cache_image(input_path, quality, resize_factor, False)
+        file_size = os.path.getsize(cache_path) / 1024  # Tamaño en KB
+
+        if min_weight_kb <= file_size <= max_weight_kb and file_size < best_file_size:
+            best_file_size = file_size
+            best_quality = quality
+            best_resize_factor = resize_factor
+            best_compression = cache_path
+
+        attempts += 1
+        resize_factor -= resize_decrement
+        print(max_attempts, attempts, resize_factor, min_resize_factor)
+
+    if best_compression:
+        messagebox.showinfo("Óptimo Encontrado",
+            f"La mejor configuración encontrada:\n"
+            f"Calidad: {best_quality}\n"
+            f"Factor de Reducción: {best_resize_factor}\n"
+            f"Tamaño: {best_file_size:.2f} KB")
+        
+        quality_var.set(value=best_quality)
+        resize_var.set(value=best_resize_factor)
+        apply_preview()
+    else:
+        messagebox.showinfo("Óptimo Encontrado", "No se encontró una configuración que cumpla con el peso deseado.")
+
+
+
 
 # Configuración de la Ventana Principal
 root = tk.Tk()
@@ -249,13 +328,14 @@ quality_var = tk.StringVar(value="85")
 resize_var = tk.StringVar(value="1.0")
 grayscale_var = tk.StringVar(value="n")
 entry_fields_disabled = tk.BooleanVar(value=False)
+max_weight_var = tk.StringVar(value="100")  # Peso máximo en KB
 
 # Layout de la GUI
-tk.Label(root, text="Configuraciones:").grid(row=0, column=0, padx=10, pady=5)
+tk.Label(root, text="CONFIGURACIONES:").grid(row=0, column=0, padx=10, pady=5)
 tk.Label(root, text="-----------------------------------------------------").grid(row=0, column=1, padx=10, pady=5)
 tk.Label(root, text="----------------").grid(row=0, column=2, padx=10, pady=5)
 tk.Label(root, text="|").grid(row=0, column=3, padx=10, pady=5)
-tk.Label(root, text="Acciones:").grid(row=0, column=4, padx=10, pady=5)
+tk.Label(root, text="ACCIONES:").grid(row=0, column=4, padx=10, pady=5)
 
 
 tk.Label(root, text="Seleccionar Imagen:").grid(row=1, column=0, padx=10, pady=5)
@@ -278,13 +358,14 @@ compress_button = tk.Button(root, text="Comprimir y Guardar", command=finalize_c
 compress_button.grid(row=2, column=4, pady=10)
 
 
-tk.Label(root, text="Calidad (1-100):").grid(row=3, column=0, padx=10, pady=5)
+tk.Label(root, text="Calidad (1 - 100):").grid(row=3, column=0, padx=10, pady=5)
 quality_entry = tk.Entry(root, textvariable=quality_var, width=10)
 quality_entry.grid(row=3, column=1, padx=10, pady=5)
 tk.Label(root, text="|").grid(row=3, column=3, padx=10, pady=5)
+tk.Button(root, text="Busqueda Automática", command=find_optimal_compression).grid(row=3, column=4, columnspan=3, padx=10, pady=5)
 
 
-tk.Label(root, text="Factor de Reducción:").grid(row=4, column=0, padx=10, pady=5)
+tk.Label(root, text="Factor de Reducción (0.1 - 1.0):").grid(row=4, column=0, padx=10, pady=5)
 resize_entry = tk.Entry(root, textvariable=resize_var, width=10)
 resize_entry.grid(row=4, column=1, padx=10, pady=5)
 tk.Label(root, text="|").grid(row=4, column=3, padx=10, pady=5)
@@ -296,26 +377,36 @@ grayscale_entry.grid(row=5, column=1, padx=10, pady=5)
 tk.Label(root, text="|").grid(row=5, column=3, padx=10, pady=5)
 
 
+tk.Label(root, text="Peso Máximo (KB)").grid(row=6, column=0, padx=10, pady=5)
+tk.Entry(root, textvariable=max_weight_var, width=10).grid(row=6, column=1, padx=10, pady=5)
+
+# Agregar campo para el número máximo de intentos
+attempts_label = tk.Label(root, text="Número máximo de intentos:").grid(row=6, column=2, padx=10, pady=5)
+attempts_var = tk.StringVar(value='10')
+attempts_entry = tk.Entry(root, textvariable=attempts_var, width=10).grid(row=6, column=4, padx=10, pady=5)
+
+
 # Imágenes y etiquetas para la visualización
 original_image_label = tk.Label(root)
-original_image_label.grid(row=6, column=0, pady=10)
+original_image_label.grid(row=7, column=0, pady=10)
 
 
 compressed_image_label = tk.Label(root)
-compressed_image_label.grid(row=6, column=1, pady=10)
+compressed_image_label.grid(row=7, column=1, pady=10)
 
 
 original_image_info = tk.StringVar()
 compressed_image_info = tk.StringVar()
 
 
-tk.Label(root, textvariable=original_image_info).grid(row=7, column=0,  pady=5)
-tk.Label(root, textvariable=compressed_image_info).grid(row=7, column=1,  pady=5)
+tk.Label(root, textvariable=original_image_info).grid(row=8, column=0,  pady=5)
+tk.Label(root, textvariable=compressed_image_info).grid(row=8, column=1,  pady=5)
 
 
 # Botón para habilitar/deshabilitar campos
 toggle_button = tk.Button(root, text="Habilitar/Deshabilitar Campos", command=toggle_entry_fields)
-toggle_button.grid(row=8, column=0, columnspan=4, pady=10)
+toggle_button.grid(row=9, column=0, columnspan=4, pady=10)
+
 
 
 # Crear la carpeta de caché al iniciar
